@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#f5f6ef">
+<title>Тесты — Топографическая анатомия</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="container">
+    <button id="backBtn" class="btn-back hidden">← Назад</button>
+    <span class="site-brand"><span class="brand-mark" aria-hidden="true">+</span> Анатомия</span>
+    <h1 id="pageTitle">Тесты по топографической анатомии</h1>
+    <div id="progressWrap" class="progress-wrap hidden">
+      <div class="progress-bar"><div id="progressFill"></div></div>
+      <span id="progressText">0 / 0</span>
+    </div>
+    <form class="logout" method="post" action="/logout">
+      <button class="btn-back" type="submit">Выйти</button>
+    </form>
+  </div>
+</header>
+
+<main class="container">
+
+  <section id="screen-home" class="screen active">
+    <div class="hero">
+      <h1>Тесты по топографической анатомии</h1>
+      <div class="stats" id="homeStats"></div>
+    </div>
+    <h2 class="subtitle">Выберите тест</h2>
+    <div class="menu-grid" id="testsMenu"></div>
+    <button id="resetProgress" class="btn-link">Сбросить весь прогресс</button>
+  </section>
+
+  <section id="screen-topics" class="screen">
+    <p class="subtitle" id="topicsSubtitle"></p>
+    <div id="topicsReview"></div>
+    <div class="menu-grid" id="topicsMenu"></div>
+  </section>
+
+  <section id="screen-quiz" class="screen">
+    <div class="question-card">
+      <div class="q-number" id="qNumber"></div>
+      <div class="q-text" id="qText"></div>
+      <p class="q-hint" id="qHint"></p>
+      <div id="qOptions" class="q-options"></div>
+      <div id="qFeedback" class="q-feedback hidden" role="status"></div>
+      <div class="q-actions">
+        <button id="answerBtn" class="btn-primary">Ответить</button>
+        <button id="nextBtn" class="btn-primary hidden">Далее →</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-result" class="screen">
+    <div class="result-card">
+      <div class="result-score" id="resultScore"></div>
+      <div class="result-detail" id="resultDetail"></div>
+      <div class="q-actions">
+        <button id="retryBtn" class="btn-primary">Пройти заново</button>
+        <button id="toHomeBtn" class="btn-secondary">В меню</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="data100.js"></script>
+<script src="data400a.js"></script>
+<script src="data400b.js"></script>
+<script src="data600a.js"></script>
+<script src="data600b.js"></script>
+<script src="data800a.js"></script>
+<script src="data800b.js"></script>
+<script src="data800c.js"></script>
+<script src="data800d.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
