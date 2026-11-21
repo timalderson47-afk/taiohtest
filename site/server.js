@@ -1,7 +1,7 @@
 "use strict";
 
 const { createHash, randomBytes, timingSafeEqual } = require("node:crypto");
-const { createReadStream } = require("node:fs");
+const { createReadStream, readFileSync, renameSync, rmSync, writeFileSync } = require("node:fs");
 const { createServer } = require("node:http");
 const { join } = require("node:path");
 
@@ -31,19 +31,66 @@ const assets = new Map([
 const types = { html: "text/html", css: "text/css", js: "text/javascript" };
 const secureCookie = process.env.SITE_SECURE_COOKIE === "1" ? "; Secure" : "";
 const sessionSeconds = 8 * 60 * 60;
+const browserSeconds = 400 * 24 * 60 * 60;
+const browserLimit = 2;
 const sessions = new Map();
+const activeTokens = new Map();
 const unknownPassword = randomBytes(32);
 const cookieAttributes = `Path=/; HttpOnly; SameSite=Strict${secureCookie}`;
+const browserFile = process.env.SITE_TRUSTED_BROWSERS_FILE || join(__dirname, "trusted-browsers.json");
+const browserTokenPattern = /^[a-f0-9]{64}$/;
+let trustedBrowsers = loadTrustedBrowsers();
+
+function loadTrustedBrowsers() {
+  let saved;
+  try {
+    saved = JSON.parse(readFileSync(browserFile, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return new Map();
+    throw error;
+  }
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) {
+    throw new Error("Invalid trusted browser file");
+  }
+  for (const browsers of Object.values(saved)) {
+    if (!Array.isArray(browsers) || browsers.length > browserLimit ||
+        !browsers.every(value => typeof value === "string" && browserTokenPattern.test(value))) {
+      throw new Error("Invalid trusted browser list");
+    }
+  }
+  return new Map(Object.entries(saved));
+}
+
+function registerBrowser(login, browserHash, browsers) {
+  const updated = new Map(trustedBrowsers);
+  updated.set(login, [...browsers, browserHash]);
+  const temporaryFile = `${browserFile}.${randomBytes(8).toString("hex")}.tmp`;
+  try {
+    writeFileSync(temporaryFile, JSON.stringify(Object.fromEntries(updated), null, 2), {
+      flag: "wx",
+      mode: 0o600
+    });
+    renameSync(temporaryFile, browserFile);
+  } finally {
+    rmSync(temporaryFile, { force: true });
+  }
+  trustedBrowsers = updated;
+}
 
 setInterval(() => {
   const now = Date.now();
-  for (const [token, { expires }] of sessions) {
-    if (expires <= now) sessions.delete(token);
+  for (const session of sessions.values()) {
+    if (session.expires <= now) endSession(session);
   }
 }, 60_000).unref();
 
-function showLogin(response, incorrect = false) {
-  response.writeHead(incorrect ? 401 : 200, { "Content-Type": "text/html; charset=utf-8" });
+function endSession(session) {
+  sessions.delete(session.token);
+  activeTokens.delete(session.login);
+}
+
+function showLogin(response, status = 200, message = "") {
+  response.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
   response.end(`<!doctype html>
 <html lang="ru">
 <head>
@@ -73,7 +120,7 @@ function showLogin(response, incorrect = false) {
     <input id="login" name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
     <label for="password">Пароль</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required>
-    ${incorrect ? '<p role="alert">Неверный логин или пароль.</p>' : ''}
+    ${message ? `<p role="alert">${message}</p>` : ""}
     <button type="submit">Войти</button>
   </form>
 </body>
@@ -85,10 +132,17 @@ async function handleRequest(request, response) {
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Content-Security-Policy", "frame-ancestors 'none'; form-action 'self'");
   const path = request.url.split("?")[0];
-  const token = request.headers.cookie?.match(/(?:^|;\s*)site_session=([a-f0-9]{64})(?:;|$)/)?.[1];
+  const cookies = request.headers.cookie ?? "";
+  const token = cookies.match(/(?:^|;\s*)site_session=([a-f0-9]{64})(?:;|$)/)?.[1];
+  const browser = cookies.match(/(?:^|;\s*)site_browser=([a-f0-9]{64})(?:;|$)/)?.[1];
+  const browserHash = browser && hash(browser).toString("hex");
+  const current = sessions.get(token);
+  const session = current?.browserHash === browserHash && current?.expires > Date.now()
+    ? current
+    : undefined;
 
   if (request.method === "POST" && path === "/logout") {
-    sessions.delete(token);
+    if (session) endSession(session);
     response.writeHead(303, {
       Location: "/",
       "Set-Cookie": `site_session=; ${cookieAttributes}; Max-Age=0`
@@ -112,16 +166,38 @@ async function handleRequest(request, response) {
     const expected = accounts.get(login);
     const matches = timingSafeEqual(hash(form.get("password") ?? ""), expected ?? unknownPassword);
     if (!matches || !expected) {
-      showLogin(response, true);
+      showLogin(response, 401, "Неверный логин или пароль.");
       return;
     }
 
-    sessions.delete(token);
+    const browserToken = browser ?? randomBytes(32).toString("hex");
+    const currentBrowserHash = browserHash ?? hash(browserToken).toString("hex");
+    const browsers = trustedBrowsers.get(login) ?? [];
+    if (!browsers.includes(currentBrowserHash)) {
+      if (browsers.length >= browserLimit) {
+        showLogin(response, 403, "К аккаунту уже привязаны два браузера. Войдите из одного из них.");
+        return;
+      }
+      registerBrowser(login, currentBrowserHash, browsers);
+    }
+
+    const previous = sessions.get(activeTokens.get(login));
+    if (previous) endSession(previous);
+    if (session && sessions.has(session.token)) endSession(session);
     const newToken = randomBytes(32).toString("hex");
-    sessions.set(newToken, { login, expires: Date.now() + sessionSeconds * 1000 });
+    sessions.set(newToken, {
+      login,
+      token: newToken,
+      browserHash: currentBrowserHash,
+      expires: Date.now() + sessionSeconds * 1000
+    });
+    activeTokens.set(login, newToken);
     response.writeHead(303, {
       Location: "/",
-      "Set-Cookie": `site_session=${newToken}; ${cookieAttributes}; Max-Age=${sessionSeconds}`
+      "Set-Cookie": [
+        `site_session=${newToken}; ${cookieAttributes}; Max-Age=${sessionSeconds}`,
+        `site_browser=${browserToken}; ${cookieAttributes}; Max-Age=${browserSeconds}`
+      ]
     }).end();
     return;
   }
@@ -131,8 +207,20 @@ async function handleRequest(request, response) {
     return;
   }
 
-  if (!(sessions.get(token)?.expires > Date.now())) {
-    if (path === "/" || path === "/index.html") showLogin(response);
+  if (path === "/session") {
+    response.writeHead(session ? 204 : 401).end();
+    return;
+  }
+
+  if (!session) {
+    if (path === "/" || path === "/index.html") {
+      if (!browser && request.method === "GET") {
+        response.setHeader("Set-Cookie",
+          `site_browser=${randomBytes(32).toString("hex")}; ${cookieAttributes}; Max-Age=${browserSeconds}`);
+      }
+      const ended = token || new URLSearchParams(request.url.split("?")[1]).has("session-ended");
+      showLogin(response, 200, ended ? "Сеанс завершён. Войдите снова, чтобы продолжить." : "");
+    }
     else response.writeHead(401).end();
     return;
   }
@@ -155,9 +243,10 @@ async function handleRequest(request, response) {
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || "127.0.0.1";
-createServer((request, response) => {
+const server = createServer((request, response) => {
   handleRequest(request, response).catch(() => {
     if (!response.headersSent) response.writeHead(500).end();
     else response.destroy();
   });
-}).listen(port, host, () => console.log(`http://${host}:${port}`));
+});
+server.listen(port, host, () => console.log(`http://${host}:${server.address().port}`));

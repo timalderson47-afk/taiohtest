@@ -1,6 +1,43 @@
 (function () {
   "use strict";
 
+  let checkingSession = false;
+  const sessionNotice = document.createElement("p");
+  sessionNotice.setAttribute("role", "status");
+  sessionNotice.textContent = "Не удалось проверить сеанс. Ожидаем соединения с сервером.";
+  sessionNotice.hidden = true;
+
+  async function checkSession() {
+    if (checkingSession || document.hidden) return;
+    checkingSession = true;
+    try {
+      const response = await fetch("/session", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000)
+      });
+      if (response.status === 401) {
+        document.body.hidden = true;
+        window.location.replace("/?session-ended");
+        return;
+      }
+      if (response.status !== 204) throw new Error("Session check failed");
+      document.querySelector("main").hidden = false;
+      sessionNotice.hidden = true;
+    } catch {
+      document.querySelector("main").hidden = true;
+      sessionNotice.hidden = false;
+    } finally {
+      checkingSession = false;
+    }
+  }
+
+  if (location.protocol === "http:" || location.protocol === "https:") {
+    document.querySelector("main").before(sessionNotice);
+    window.addEventListener("pageshow", checkSession);
+    document.addEventListener("visibilitychange", checkSession);
+    window.setInterval(checkSession, 5000);
+  }
+
   // Номера и диапазоны относятся к исходным номерам вопросов каждого теста.
   const TOPICS = {
     "400": [
