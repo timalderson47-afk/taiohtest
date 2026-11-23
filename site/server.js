@@ -1,7 +1,7 @@
 "use strict";
 
 const { createHash, randomBytes, timingSafeEqual } = require("node:crypto");
-const { createReadStream, readFileSync, renameSync, rmSync, writeFileSync } = require("node:fs");
+const { createReadStream, existsSync, readFileSync, renameSync, rmSync, writeFileSync } = require("node:fs");
 const { createServer } = require("node:http");
 const { join } = require("node:path");
 
@@ -25,10 +25,10 @@ try {
 const assets = new Map([
   ["/", "index.html"],
   ...["index.html", "style.css", "script.js", "data100.js", "data400a.js", "data400b.js",
-    "data600a.js", "data600b.js", "data800a.js", "data800b.js", "data800c.js", "data800d.js"]
+    "data600a.js", "data600b.js", "data800a.js", "data800b.js", "data800c.js", "data800d.js", "data-patfiz.js"]
     .map(file => ["/" + file, file])
 ]);
-const types = { html: "text/html", css: "text/css", js: "text/javascript" };
+const types = { html: "text/html", css: "text/css", js: "text/javascript", png: "image/png" };
 const secureCookie = process.env.SITE_SECURE_COOKIE === "1" ? "; Secure" : "";
 const sessionSeconds = 8 * 60 * 60;
 const browserSeconds = 400 * 24 * 60 * 60;
@@ -96,7 +96,7 @@ function showLogin(response, status = 200, message = "") {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Вход · Тесты по анатомии</title>
+  <title>Вход · Тесты по медицине</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; padding: 24px; min-height: 100vh; display: grid; place-items: center;
@@ -115,7 +115,7 @@ function showLogin(response, status = 200, message = "") {
 </head>
 <body>
   <form method="post" action="/login">
-    <h1>Тесты по анатомии</h1>
+    <h1>Тесты по медицине</h1>
     <label for="login">Логин</label>
     <input id="login" name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
     <label for="password">Пароль</label>
@@ -225,8 +225,9 @@ async function handleRequest(request, response) {
     return;
   }
 
-  const file = assets.get(path);
-  if (!file) {
+  const file = assets.get(path) ??
+    (/^\/patfiz-images\/figure-\d{2}\.png$/.test(path) ? path.slice(1) : null);
+  if (!file || (file.endsWith(".png") && !existsSync(join(__dirname, file)))) {
     response.writeHead(404).end();
     return;
   }

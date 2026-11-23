@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#f5f6ef">
-<title>Тесты — Топографическая анатомия</title>
+<title>Тесты по медицине</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,8 +12,8 @@
 <header class="topbar">
   <div class="container">
     <button id="backBtn" class="btn-back hidden">← Назад</button>
-    <span class="site-brand"><span class="brand-mark" aria-hidden="true">+</span> Анатомия</span>
-    <h1 id="pageTitle">Тесты по топографической анатомии</h1>
+    <span class="site-brand"><span class="brand-mark" aria-hidden="true">+</span> Медицинские тесты</span>
+    <h1 id="pageTitle">Тесты по медицине</h1>
     <div id="progressWrap" class="progress-wrap hidden">
       <div class="progress-bar"><div id="progressFill"></div></div>
       <span id="progressText">0 / 0</span>
@@ -28,24 +28,27 @@
 
   <section id="screen-home" class="screen active">
     <div class="hero">
-      <h1>Тесты по топографической анатомии</h1>
+      <h1>Тесты по медицине</h1>
       <div class="stats" id="homeStats"></div>
     </div>
-    <h2 class="subtitle">Выберите тест</h2>
+    <h2 class="subtitle">Топографическая анатомия</h2>
     <div class="menu-grid" id="testsMenu"></div>
+    <h2 class="subtitle subject-heading">Патофизиология</h2>
+    <div id="patfizMenu"></div>
     <button id="resetProgress" class="btn-link">Сбросить весь прогресс</button>
   </section>
 
   <section id="screen-topics" class="screen">
     <p class="subtitle" id="topicsSubtitle"></p>
     <div id="topicsReview"></div>
-    <div class="menu-grid" id="topicsMenu"></div>
+    <div id="topicsMenu"></div>
   </section>
 
   <section id="screen-quiz" class="screen">
     <div class="question-card">
       <div class="q-number" id="qNumber"></div>
       <div class="q-text" id="qText"></div>
+      <div id="qImages" class="q-images" hidden></div>
       <p class="q-hint" id="qHint"></p>
       <div id="qOptions" class="q-options"></div>
       <div id="qFeedback" class="q-feedback hidden" role="status"></div>
@@ -78,6 +81,7 @@
 <script src="data800b.js"></script>
 <script src="data800c.js"></script>
 <script src="data800d.js"></script>
+<script src="data-patfiz.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

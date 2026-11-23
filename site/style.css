@@ -211,3 +211,43 @@ body:not(:has(#screen-home.active)) .site-brand { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .menu-card, #progressFill { transition: none; }
 }
+
+.subject-heading,
+.topic-group {
+  margin-top: 28px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.text-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #aab8ad;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.topic-search {
+  max-width: 420px;
+}
+
+.q-options label .text-input {
+  display: block;
+  margin-top: 6px;
+}
+
+.text-input.correct { background: #e4f2e4; border-color: #529463; }
+.text-input.wrong { background: #fceaea; border-color: #b56868; }
+.blank { color: var(--accent); white-space: nowrap; }
+.q-images { display: grid; gap: 10px; margin-block: 12px; }
+.q-images img { max-width: 100%; height: auto; }
+.q-options ol { margin: 0; padding-inline-start: 1.6em; }
+.q-options li + li { margin-top: 8px; }
+
+.topic-source {
+  margin-top: 24px;
+}

@@ -103,6 +103,7 @@
   };
 
   const $ = (sel) => document.querySelector(sel);
+  const HOME_TITLE = "Тесты по медицине";
   const LS_KEY = "tna_progress_v1";
 
   function getProgress() {
@@ -169,9 +170,17 @@
       menu.appendChild(card);
     });
 
+    const patfiz = data.testpatfiz;
+    const patfizCount = patfiz.topics.reduce((sum, topic) => sum + topic.questions.length, 0);
+    const patfizCard = document.createElement("button");
+    patfizCard.className = "menu-card review";
+    patfizCard.innerHTML = `<span class="card-title">Открыть темы</span><span class="meta">${patfiz.topics.length} тем · ${patfizCount} вопросов</span>`;
+    patfizCard.onclick = () => openTest("patfiz");
+    $("#patfizMenu").replaceChildren(patfizCard);
+
     const progress = getProgress();
     const done = Object.keys(progress).length;
-    const total = tests.reduce((s, t) => s + t.count, 0);
+    const total = tests.reduce((s, t) => s + t.count, patfizCount);
     $("#homeStats").innerHTML = `
       <div class="stat-box"><div class="num">${total}</div><div class="lbl">Всего вопросов</div></div>
       <div class="stat-box"><div class="num">${done}</div><div class="lbl">Пройдено тестов</div></div>
@@ -190,6 +199,11 @@
       return;
     }
 
+    if (testKey === "patfiz") {
+      renderPatfizTopics(data.testpatfiz);
+      return;
+    }
+
     const test = data["test" + testKey];
     if (!test || !test.questions || !test.questions.length) {
       return alert("Нет данных для теста " + testKey);
@@ -200,6 +214,7 @@
 
     const menu = $("#topicsMenu");
     menu.innerHTML = "";
+    menu.className = "menu-grid";
     $("#topicsSubtitle").textContent = "Выберите тему или пройдите все вопросы";
 
     // обзор
@@ -225,6 +240,73 @@
     showProgress(false);
   }
 
+  function renderPatfizTopics(test) {
+    const menu = $("#topicsMenu");
+    menu.replaceChildren();
+    menu.className = "";
+    $("#topicsReview").replaceChildren();
+    $("#topicsSubtitle").textContent = "Выберите тему";
+
+    const filter = document.createElement("input");
+    filter.type = "search";
+    filter.className = "text-input topic-search";
+    filter.placeholder = "Поиск по темам";
+    filter.setAttribute("aria-label", filter.placeholder);
+    const status = document.createElement("p");
+    status.textContent = "Темы не найдены.";
+    status.setAttribute("role", "status");
+    status.hidden = true;
+    menu.append(filter, status);
+
+    const groups = new Map();
+    for (const topic of test.topics) {
+      if (!groups.has(topic.group)) {
+        const section = document.createElement("section");
+        section.className = "topic-group";
+        const heading = document.createElement("h2");
+        heading.className = "subtitle";
+        heading.textContent = topic.group;
+        const grid = document.createElement("div");
+        grid.className = "menu-grid";
+        section.append(heading, grid);
+        menu.append(section);
+        groups.set(topic.group, { section, grid });
+      }
+      const card = document.createElement("button");
+      card.className = "menu-card";
+      const title = document.createElement("span");
+      title.className = "card-title";
+      title.textContent = topic.title;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `${topic.questions.length} вопросов`;
+      card.append(title, meta);
+      card.onclick = () => startQuiz(topic.questions, topic.title);
+      groups.get(topic.group).grid.append(card);
+    }
+    const source = document.createElement("p");
+    source.className = "subtitle topic-source";
+    source.textContent = "Источник: М. В. Осиков и соавторы. Тестовые задания к практическим занятиям по патофизиологии. ЮУГМУ, 2021.";
+    menu.append(source);
+
+    filter.oninput = () => {
+      const query = filter.value.trim().toLocaleLowerCase("ru").replaceAll("ё", "е");
+      for (const { section, grid } of groups.values()) {
+        for (const card of grid.children) {
+          const title = card.querySelector(".card-title").textContent.toLocaleLowerCase("ru").replaceAll("ё", "е");
+          card.hidden = !title.includes(query);
+        }
+        section.hidden = !grid.querySelector("button:not([hidden])");
+      }
+      status.hidden = [...groups.values()].some(({ section }) => !section.hidden);
+    };
+
+    showScreen("topics");
+    setTitle(test.title);
+    showBack(true);
+    showProgress(false);
+  }
+
   // ---------- Запуск квиза ----------
   function startQuiz(questions, topicName) {
     state.currentTopic = topicName;
@@ -232,7 +314,7 @@
     let qs = shuffle(questions).map(q => ({ ...q }));
     // перемешиваем варианты для одиночных/множественных, но НЕ для ordering
     qs = qs.map(q => {
-      if (q.type === "ordering") return q;
+      if (q.type === "ordering" || q.type === "fill" || q.type === "practice") return q;
       const positions = shuffle(q.options.map((_, index) => index + 1));
       return {
         ...q,
@@ -259,8 +341,23 @@
 
     $("#qNumber").textContent = `Вопрос ${state.index + 1} из ${state.questions.length} · №${q.number}`;
     $("#qText").textContent = q.question;
-    $("#qHint").textContent = q.type === "ordering" ? "Расположите варианты по порядку" :
-      q.type === "multiple" ? "Выберите все верные варианты" : "Выберите один вариант";
+    const hints = {
+      ordering: "Расположите варианты по порядку",
+      multiple: "Выберите все верные варианты",
+      fill: "Заполните пропуски",
+      practice: "Задание для самопроверки. Оно не входит в итоговый балл.",
+      single: "Выберите один вариант"
+    };
+    $("#qHint").textContent = hints[q.type];
+    const images = $("#qImages");
+    images.replaceChildren();
+    (q.images || []).forEach((src, i) => {
+      const figure = document.createElement("img");
+      figure.src = src;
+      figure.alt = `Иллюстрация ${i + 1} к заданию, страница ${q.page}`;
+      images.append(figure);
+    });
+    images.hidden = !images.childElementCount;
     $("#qFeedback").className = "q-feedback hidden";
     $("#qFeedback").textContent = "";
     $("#answerBtn").classList.remove("hidden");
@@ -270,11 +367,86 @@
     const box = $("#qOptions");
     box.innerHTML = "";
 
-    if (q.type === "ordering") renderOrdering(q, box);
+    if (q.type === "practice") {
+      const list = document.createElement("ol");
+      for (const option of q.options || []) {
+        const item = document.createElement("li");
+        item.textContent = option;
+        list.append(item);
+      }
+      if (list.childElementCount) box.append(list);
+      $("#answerBtn").classList.add("hidden");
+      $("#nextBtn").classList.remove("hidden");
+    } else if (q.type === "fill") renderFill(q, box);
+    else if (q.type === "ordering") renderOrdering(q, box);
     else if (q.type === "multiple") renderMultiple(q, box);
     else renderSingle(q, box);
 
     updateProgressBar();
+  }
+
+  function renderFill(q, box) {
+    const text = $("#qText");
+    text.replaceChildren();
+    const parts = q.question.split("____");
+    const fields = q.answers.map((_, i) => {
+      const label = document.createElement("label");
+      const count = q.answers.length;
+      const labelText = count === 1 ? "Ответ" : `Пропуск ${i + 1}`;
+      label.textContent = labelText;
+      const field = document.createElement("input");
+      field.type = "text";
+      field.className = "text-input";
+      field.autocomplete = "off";
+      field.spellcheck = false;
+      field.required = true;
+      label.append(field);
+      box.append(label);
+      return field;
+    });
+    parts.forEach((part, i) => {
+      text.append(part);
+      if (i < fields.length) {
+        const blank = document.createElement("span");
+        blank.className = "blank";
+        blank.textContent = `[${i + 1}]`;
+        text.append(blank);
+      }
+    });
+    fields.forEach((field, i) => {
+      field.onkeydown = event => {
+        if (event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        if (i + 1 < fields.length) fields[i + 1].focus();
+        else answerQuestion();
+      };
+    });
+  }
+
+  function normalizeAnswer(text) {
+    return text.normalize("NFKC").toLocaleLowerCase("ru").replaceAll("ё", "е")
+      .replace(/[‐‑−–—]/g, "-").replace(/(\d)\.(?=\d)/g, "$1,")
+      .replace(/\s*([.,()<>+%-])\s*/g, "$1").replace(/\s+/g, " ")
+      .trim().replace(/[.,;]+$/, "");
+  }
+
+  function answerFill(q) {
+    const fields = [...$("#qOptions").querySelectorAll("input")];
+    const empty = fields.find(field => !field.value.trim());
+    if (empty) {
+      empty.reportValidity();
+      empty.focus();
+      return;
+    }
+    const correct = fields.map((field, i) => {
+      const expected = q.answers[i].split("|").map(normalizeAnswer);
+      const matches = expected.includes(normalizeAnswer(field.value));
+      field.disabled = true;
+      field.classList.add(matches ? "correct" : "wrong");
+      return matches;
+    }).every(Boolean);
+    const expectedText = q.answers.map(answer => answer.split("|")[0]).join(" · ");
+    showFeedback(correct, expectedText);
   }
 
   function renderSingle(q, box) {
@@ -353,6 +525,9 @@
     const q = state.questions[state.index];
     const user = state.userAnswers[state.index] || [];
 
+    if (state.answers[state.index] !== undefined || q.type === "practice") return;
+    if (q.type === "fill") return answerFill(q);
+
     if (q.type === "ordering") {
       if (!user.length) return alert("Расставьте все элементы по порядку");
     } else {
@@ -371,8 +546,6 @@
     } else {
       isCorrect = user.length === 1 && correct.includes(user[0]);
     }
-
-    state.answers[state.index] = isCorrect;
 
     const box = $("#qOptions");
     if (q.type === "ordering") {
@@ -394,13 +567,18 @@
       });
     }
 
+    showFeedback(isCorrect, correct.map(n => `№${n}`).join(", "));
+  }
+
+  function showFeedback(isCorrect, expectedText) {
+    state.answers[state.index] = isCorrect;
     const fb = $("#qFeedback");
     if (isCorrect) {
       fb.className = "q-feedback ok";
       fb.textContent = "✅ Верно!";
     } else {
       fb.className = "q-feedback bad";
-      fb.textContent = `❌ Неверно. Правильный ответ: ${correct.map(n => `№${n}`).join(", ")}`;
+      fb.textContent = `❌ Неверно. Правильный ответ: ${expectedText}`;
     }
     fb.classList.remove("hidden");
 
@@ -426,12 +604,12 @@
 
   // ---------- Завершение ----------
   function finishQuiz() {
-    const total = state.questions.length;
+    const total = state.questions.filter(q => q.type !== "practice").length;
     const correct = state.answers.filter(x => x === true).length;
     const pct = total ? Math.round((correct / total) * 100) : 0;
 
     const scoreEl = $("#resultScore");
-    scoreEl.textContent = `${correct} / ${total} (${pct}%)`;
+    scoreEl.textContent = total ? `${correct} / ${total} (${pct}%)` : "Пройдено";
     scoreEl.className = "result-score " + (pct >= 70 ? "good" : pct >= 40 ? "mid" : "bad");
     $("#resultDetail").textContent = state.currentTopic;
 
@@ -462,12 +640,12 @@
   function goBack() {
     if (state.screen === "quiz" || state.screen === "result") {
       if (state.currentTest === "100") {
-        renderHome(); showScreen("home"); setTitle("Тесты по топографической анатомии"); showBack(false); showProgress(false);
+        renderHome(); showScreen("home"); setTitle(HOME_TITLE); showBack(false); showProgress(false);
       } else {
         openTest(state.currentTest);
       }
     } else {
-      renderHome(); showScreen("home"); setTitle("Тесты по топографической анатомии"); showBack(false); showProgress(false);
+      renderHome(); showScreen("home"); setTitle(HOME_TITLE); showBack(false); showProgress(false);
     }
   }
 
@@ -483,7 +661,7 @@
     $("#nextBtn").onclick = nextQuestion;
     $("#retryBtn").onclick = () => startQuiz(state.questions, state.currentTopic);
     $("#toHomeBtn").onclick = () => {
-      renderHome(); showScreen("home"); setTitle("Тесты по топографической анатомии"); showBack(false); showProgress(false);
+      renderHome(); showScreen("home"); setTitle(HOME_TITLE); showBack(false); showProgress(false);
     };
     $("#resetProgress").onclick = () => {
       if (confirm("Сбросить весь прогресс?")) {
