@@ -137,7 +137,8 @@
   function indexQuestions() {
     const data = window.DATA || {};
     for (const [test, bank] of Object.entries(data)) {
-      const topics = bank.topics || [{ title: "", questions: bank.questions || [] }];
+      const topics = Array.isArray(bank.topics)
+        ? bank.topics : [{ title: "", questions: bank.questions || [] }];
       for (const topic of topics) {
         for (const question of topic.questions) {
           // A changed question invalidates its saved option order and answer.
@@ -299,16 +300,22 @@
     tests.forEach(t => {
       const card = document.createElement("button");
       card.className = "menu-card";
-      card.innerHTML = `<span class="card-title">${t.title}</span><span class="meta">${t.count} вопросов</span>`;
+      card.disabled = t.count === 0;
+      const details = t.count ? `${t.count} вопросов` : "База вопросов не загрузилась";
+      card.innerHTML = `<span class="card-title">${t.title}</span><span class="meta">${details}</span>`;
       card.onclick = () => openTest(t.key);
       menu.appendChild(card);
     });
 
-    const patfiz = data.testpatfiz;
-    const patfizCount = patfiz.topics.reduce((sum, topic) => sum + topic.questions.length, 0);
+    const patfizTopics = data.testpatfiz?.topics || [];
+    const patfizCount = patfizTopics.reduce((sum, topic) => sum + topic.questions.length, 0);
     const patfizCard = document.createElement("button");
     patfizCard.className = "menu-card review";
-    patfizCard.innerHTML = `<span class="card-title">Открыть темы</span><span class="meta">${patfiz.topics.length} тем · ${patfizCount} вопросов</span>`;
+    patfizCard.disabled = patfizCount === 0;
+    const patfizDetails = patfizCount
+      ? `${patfizTopics.length} тем · ${patfizCount} вопросов`
+      : "База вопросов не загрузилась";
+    patfizCard.innerHTML = `<span class="card-title">Открыть темы</span><span class="meta">${patfizDetails}</span>`;
     patfizCard.onclick = () => openTest("patfiz");
     $("#patfizMenu").replaceChildren(patfizCard);
 
