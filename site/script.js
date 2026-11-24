@@ -144,6 +144,9 @@
     currentTest: null,
     currentTopic: null,
     questions: [],
+    fullQuizQuestions: [],
+    reviewingMistakes: false,
+    completedCount: 0,
     index: 0,
     answers: [],
     userAnswers: [],
@@ -308,7 +311,9 @@
   }
 
   // ---------- Запуск квиза ----------
-  function startQuiz(questions, topicName) {
+  function startQuiz(questions, topicName, reviewingMistakes = false) {
+    if (!reviewingMistakes) state.fullQuizQuestions = questions;
+    state.reviewingMistakes = reviewingMistakes;
     state.currentTopic = topicName;
     // перемешиваем вопросы
     let qs = shuffle(questions).map(q => ({ ...q }));
@@ -325,10 +330,11 @@
     });
     state.questions = qs;
     state.index = 0;
+    state.completedCount = 0;
     state.answers = [];
     state.userAnswers = [];
     showScreen("quiz");
-    setTitle(topicName);
+    setTitle(reviewingMistakes ? "Работа над ошибками" : topicName);
     showBack(true);
     showProgress(true);
     renderQuestion();
@@ -358,6 +364,9 @@
       images.append(figure);
     });
     images.hidden = !images.childElementCount;
+    $("#prevQuestionBtn").classList.toggle("hidden", state.index === 0);
+    $("#nextBtn").textContent = state.index === state.questions.length - 1
+      ? "Завершить тест" : "Далее →";
     $("#qFeedback").className = "q-feedback hidden";
     $("#qFeedback").textContent = "";
     $("#answerBtn").classList.remove("hidden");
@@ -382,6 +391,8 @@
     else if (q.type === "multiple") renderMultiple(q, box);
     else renderSingle(q, box);
 
+    const submitted = state.answers[state.index];
+    if (typeof submitted === "boolean") showFeedback(q, submitted);
     updateProgressBar();
   }
 
@@ -413,7 +424,12 @@
         text.append(blank);
       }
     });
+    const draft = state.userAnswers[state.index] || [];
     fields.forEach((field, i) => {
+      field.value = draft[i] ?? "";
+      field.oninput = () => {
+        state.userAnswers[state.index] = fields.map(input => input.value);
+      };
       field.onkeydown = event => {
         if (event.key !== "Enter" || event.isComposing) return;
         event.preventDefault();
@@ -438,15 +454,13 @@
       empty.focus();
       return;
     }
-    const correct = fields.map((field, i) => {
-      const expected = q.answers[i].split("|").map(normalizeAnswer);
-      const matches = expected.includes(normalizeAnswer(field.value));
-      field.disabled = true;
-      field.classList.add(matches ? "correct" : "wrong");
-      return matches;
-    }).every(Boolean);
-    const expectedText = q.answers.map(answer => answer.split("|")[0]).join(" · ");
-    showFeedback(correct, expectedText);
+    const user = fields.map(field => field.value);
+    state.userAnswers[state.index] = user;
+    submitAnswer(q, user.every((value, i) => matchesFillAnswer(value, q.answers[i])));
+  }
+
+  function matchesFillAnswer(value, expected) {
+    return expected.split("|").map(normalizeAnswer).includes(normalizeAnswer(value));
   }
 
   function renderSingle(q, box) {
@@ -456,6 +470,7 @@
       el.dataset.idx = i;
       el.innerHTML = `<span class="marker">${i + 1}</span><span class="text"></span>`;
       el.querySelector(".text").textContent = opt;
+      el.classList.toggle("selected", state.userAnswers[state.index]?.includes(i + 1) ?? false);
       el.onclick = () => {
         if (el.classList.contains("disabled")) return;
         box.querySelectorAll(".option").forEach(o => o.classList.remove("selected"));
@@ -473,6 +488,7 @@
       el.dataset.idx = i;
       el.innerHTML = `<span class="marker">${i + 1}</span><span class="text"></span>`;
       el.querySelector(".text").textContent = opt;
+      el.classList.toggle("selected", state.userAnswers[state.index]?.includes(i + 1) ?? false);
       el.onclick = () => {
         if (el.classList.contains("disabled")) return;
         el.classList.toggle("selected");
@@ -485,7 +501,8 @@
 
   function renderOrdering(q, box) {
     const items = q.options.map((opt, i) => ({ opt, orig: i + 1 }));
-    let current = items.slice();
+    const savedOrder = state.userAnswers[state.index];
+    const current = savedOrder ? savedOrder.map(number => items[number - 1]) : items;
 
     const list = document.createElement("div");
     list.className = "ordering-list";
@@ -547,18 +564,39 @@
       isCorrect = user.length === 1 && correct.includes(user[0]);
     }
 
+    submitAnswer(q, isCorrect);
+  }
+
+  function submitAnswer(q, isCorrect) {
+    state.answers[state.index] = isCorrect;
+    state.completedCount++;
+    showFeedback(q, isCorrect);
+    updateProgressBar();
+  }
+
+  function showFeedback(q, isCorrect) {
     const box = $("#qOptions");
-    if (q.type === "ordering") {
+    const user = state.userAnswers[state.index];
+    const correct = q.correct_order || q.answer_numbers || [];
+    let expectedText = correct.map(n => `№${n}`).join(", ");
+
+    if (q.type === "fill") {
+      box.querySelectorAll("input").forEach((field, i) => {
+        field.disabled = true;
+        field.classList.add(matchesFillAnswer(user[i], q.answers[i]) ? "correct" : "wrong");
+      });
+      expectedText = q.answers.map(answer => answer.split("|")[0]).join(" · ");
+    } else if (q.type === "ordering") {
       const rows = box.querySelectorAll(".order-item");
       rows.forEach((row, i) => {
         row.querySelectorAll("button").forEach(button => { button.disabled = true; });
-        const orig = state.userAnswers[state.index][i];
-        const isRight = orig === correct[i];
+        const isRight = user[i] === correct[i];
         row.classList.add(isRight ? "correct" : "wrong");
       });
     } else {
       box.querySelectorAll(".option").forEach(el => {
         const num = +el.dataset.idx + 1;
+        el.disabled = true;
         el.classList.add("disabled");
         const wasSelected = user.includes(num);
         const isRight = correct.includes(num);
@@ -567,11 +605,6 @@
       });
     }
 
-    showFeedback(isCorrect, correct.map(n => `№${n}`).join(", "));
-  }
-
-  function showFeedback(isCorrect, expectedText) {
-    state.answers[state.index] = isCorrect;
     const fb = $("#qFeedback");
     if (isCorrect) {
       fb.className = "q-feedback ok";
@@ -584,10 +617,16 @@
 
     $("#answerBtn").classList.add("hidden");
     $("#nextBtn").classList.remove("hidden");
-    updateProgressBar();
   }
 
   function nextQuestion() {
+    const q = state.questions[state.index];
+    if (state.answers[state.index] === undefined) {
+      if (q.type !== "practice") return;
+      state.answers[state.index] = null;
+      state.completedCount++;
+    }
+
     state.index++;
     if (state.index >= state.questions.length) finishQuiz();
     else renderQuestion();
@@ -596,7 +635,7 @@
   // ---------- Прогресс ----------
   function updateProgressBar() {
     const total = state.questions.length;
-    const done = state.index + (state.answers[state.index] !== undefined ? 1 : 0);
+    const done = state.completedCount;
     const pct = total ? Math.round((done / total) * 100) : 0;
     $("#progressFill").style.width = pct + "%";
     $("#progressText").textContent = `${done} / ${total}`;
@@ -611,12 +650,21 @@
     const scoreEl = $("#resultScore");
     scoreEl.textContent = total ? `${correct} / ${total} (${pct}%)` : "Пройдено";
     scoreEl.className = "result-score " + (pct >= 70 ? "good" : pct >= 40 ? "mid" : "bad");
-    $("#resultDetail").textContent = state.currentTopic;
+    $("#resultDetail").textContent = state.reviewingMistakes
+      ? `Работа над ошибками · ${state.currentTopic}` : state.currentTopic;
 
-    const p = getProgress();
-    const key = `${state.currentTest}::${state.currentTopic}`;
-    p[key] = { correct, total, pct, date: Date.now() };
-    saveProgress(p);
+    const mistakes = state.questions.filter((_, index) => state.answers[index] === false);
+    const retryMistakes = $("#retryMistakesBtn");
+    retryMistakes.classList.toggle("hidden", mistakes.length === 0);
+    retryMistakes.textContent = `Повторить ошибки (${mistakes.length})`;
+    retryMistakes.onclick = () => startQuiz(mistakes, state.currentTopic, true);
+
+    if (!state.reviewingMistakes) {
+      const p = getProgress();
+      const key = `${state.currentTest}::${state.currentTopic}`;
+      p[key] = { correct, total, pct, date: Date.now() };
+      saveProgress(p);
+    }
 
     showScreen("result");
     showBack(true);
@@ -659,7 +707,12 @@
     $("#backBtn").onclick = goBack;
     $("#answerBtn").onclick = answerQuestion;
     $("#nextBtn").onclick = nextQuestion;
-    $("#retryBtn").onclick = () => startQuiz(state.questions, state.currentTopic);
+    $("#prevQuestionBtn").onclick = () => {
+      if (state.index === 0) return;
+      state.index--;
+      renderQuestion();
+    };
+    $("#retryBtn").onclick = () => startQuiz(state.fullQuizQuestions, state.currentTopic);
     $("#toHomeBtn").onclick = () => {
       renderHome(); showScreen("home"); setTitle(HOME_TITLE); showBack(false); showProgress(false);
     };
