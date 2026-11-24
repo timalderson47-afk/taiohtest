@@ -105,11 +105,139 @@
   const $ = (sel) => document.querySelector(sel);
   const HOME_TITLE = "Тесты по медицине";
   const LS_KEY = "tna_progress_v1";
+  const STUDY_KEY = "tna_study_v1";
 
   function getProgress() {
     try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; }
   }
   function saveProgress(p) { localStorage.setItem(LS_KEY, JSON.stringify(p)); }
+
+  function getStudy() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STUDY_KEY));
+      if (saved?.drafts && saved?.mistakes) return saved;
+    } catch { /* The test can still be taken without local storage. */ }
+    return { drafts: {}, mistakes: {} };
+  }
+
+  function updateStudy(change) {
+    const study = getStudy();
+    change(study);
+    try {
+      localStorage.setItem(STUDY_KEY, JSON.stringify(study));
+      $("#studyStorageStatus").hidden = true;
+    } catch {
+      $("#studyStorageStatus").hidden = false;
+    }
+  }
+
+  const questionKeys = new WeakMap();
+  const questionBank = new Map();
+
+  function indexQuestions() {
+    const data = window.DATA || {};
+    for (const [test, bank] of Object.entries(data)) {
+      const topics = bank.topics || [{ title: "", questions: bank.questions || [] }];
+      for (const topic of topics) {
+        for (const question of topic.questions) {
+          // A changed question invalidates its saved option order and answer.
+          let hash = 2166136261;
+          const content = JSON.stringify(question);
+          for (let i = 0; i < content.length; i++) {
+            hash = Math.imul(hash ^ content.charCodeAt(i), 16777619);
+          }
+          const key = JSON.stringify([test, topic.title, question.number, hash >>> 0]);
+          questionKeys.set(question, key);
+          questionBank.set(key, question);
+        }
+      }
+    }
+  }
+
+  function saveCurrentQuiz(isCorrect) {
+    const { draftId, currentTest, currentTopic, reviewingMistakes, fullQuizKeys,
+      questionOrder, index, answers, userAnswers } = state;
+    updateStudy(study => {
+      study.drafts[draftId] = {
+        test: currentTest, topic: currentTopic, reviewingMistakes, fullQuizKeys,
+        questionOrder, index, answers: { ...answers }, userAnswers, updatedAt: Date.now()
+      };
+      if (typeof isCorrect !== "boolean") return;
+      const { key } = questionOrder[index];
+      if (isCorrect) delete study.mistakes[key];
+      else study.mistakes[key] ??= { test: currentTest, topic: currentTopic };
+    });
+  }
+
+  function availableDrafts(study) {
+    return Object.entries(study.drafts)
+      .filter(([, draft]) => draft?.questionOrder?.length && draft.questionOrder.every(item => questionBank.has(item.key)))
+      .sort(([, a], [, b]) => b.updatedAt - a.updatedAt);
+  }
+
+  function testLabel(test) {
+    return window.DATA?.["test" + test]?.title || `Тест ${test}`;
+  }
+
+  function studyCard(title, details, action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "menu-card";
+    const label = document.createElement("span");
+    label.className = "card-title";
+    label.textContent = title;
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = details;
+    button.append(label, meta);
+    button.onclick = action;
+    return button;
+  }
+
+  function renderStudyHome() {
+    const study = getStudy();
+    const drafts = availableDrafts(study);
+    const draftList = $("#studyDraftList");
+    draftList.replaceChildren();
+    $("#studyDrafts").hidden = !drafts.length;
+    for (const [id, draft] of drafts) {
+      const mode = draft.reviewingMistakes ? "Работа над ошибками · " : "";
+      const details = `${mode}${testLabel(draft.test)} · Вопрос ${draft.index + 1} из ${draft.questionOrder.length}`;
+      draftList.append(studyCard(draft.topic, details, () => restoreQuiz(id, draft)));
+    }
+    const count = Object.keys(study.mistakes).filter(key => questionBank.has(key)).length;
+    $("#studyMistakes").replaceChildren(studyCard("Мои ошибки", `Вопросов для повторения: ${count}`, renderMistakes));
+  }
+
+  function renderMistakes() {
+    const groups = new Map();
+    for (const [key, { test, topic }] of Object.entries(getStudy().mistakes)) {
+      if (!questionBank.has(key)) continue;
+      const groupKey = JSON.stringify([test, topic]);
+      if (!groups.has(groupKey)) groups.set(groupKey, { test, topic, keys: [] });
+      groups.get(groupKey).keys.push(key);
+    }
+
+    const list = $("#studyMistakeList");
+    list.replaceChildren();
+    $("#studyMistakeEmpty").hidden = groups.size > 0;
+    const drafts = availableDrafts(getStudy());
+    for (const { test, topic, keys } of groups.values()) {
+      list.append(studyCard(topic, `${testLabel(test)} · Вопросов: ${keys.length}`, () => {
+        const wanted = new Set(keys);
+        const pending = drafts.find(([, draft]) => draft.reviewingMistakes &&
+          draft.test === test && draft.topic === topic && draft.questionOrder.length === keys.length &&
+          draft.questionOrder.every(item => wanted.has(item.key)));
+        if (pending) return restoreQuiz(...pending);
+        state.currentTest = test;
+        startQuiz(keys.map(key => questionBank.get(key)), topic, true, []);
+      }));
+    }
+    showScreen("mistakes");
+    setTitle("Мои ошибки");
+    showBack(true);
+    showProgress(false);
+  }
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -144,7 +272,9 @@
     currentTest: null,
     currentTopic: null,
     questions: [],
-    fullQuizQuestions: [],
+    draftId: null,
+    fullQuizKeys: [],
+    questionOrder: [],
     reviewingMistakes: false,
     completedCount: 0,
     index: 0,
@@ -154,6 +284,7 @@
 
   // ---------- Главное меню ----------
   function renderHome() {
+    renderStudyHome();
     const menu = $("#testsMenu");
     menu.innerHTML = "";
     const data = window.DATA || {};
@@ -198,7 +329,7 @@
     if (testKey === "100") {
       const qs = data.test100?.questions || [];
       if (!qs.length) return alert("Нет данных для теста 100");
-      startQuiz(qs, "Тест 100");
+      openQuiz(qs, "Тест 100");
       return;
     }
 
@@ -224,7 +355,7 @@
     const reviewCard = document.createElement("button");
     reviewCard.className = "menu-card review";
     reviewCard.innerHTML = `<span class="card-title">${review.title}</span><span class="meta">Все темы · ${review.questions.length} вопросов</span>`;
-    reviewCard.onclick = () => startQuiz(review.questions, review.title);
+    reviewCard.onclick = () => openQuiz(review.questions, review.title);
     $("#topicsReview").replaceChildren(reviewCard);
 
     // темы
@@ -233,7 +364,7 @@
       card.className = "menu-card";
       card.innerHTML = `<span class="card-title">${name}</span><span class="meta">${qs.length} вопросов</span>`;
       card.disabled = qs.length === 0;
-      card.onclick = () => startQuiz(qs, name);
+      card.onclick = () => openQuiz(qs, name);
       menu.appendChild(card);
     });
 
@@ -284,7 +415,7 @@
       meta.className = "meta";
       meta.textContent = `${topic.questions.length} вопросов`;
       card.append(title, meta);
-      card.onclick = () => startQuiz(topic.questions, topic.title);
+      card.onclick = () => openQuiz(topic.questions, topic.title);
       groups.get(topic.group).grid.append(card);
     }
     const source = document.createElement("p");
@@ -311,30 +442,52 @@
   }
 
   // ---------- Запуск квиза ----------
-  function startQuiz(questions, topicName, reviewingMistakes = false) {
-    if (!reviewingMistakes) state.fullQuizQuestions = questions;
-    state.reviewingMistakes = reviewingMistakes;
-    state.currentTopic = topicName;
-    // перемешиваем вопросы
-    let qs = shuffle(questions).map(q => ({ ...q }));
-    // перемешиваем варианты для одиночных/множественных, но НЕ для ordering
-    qs = qs.map(q => {
-      if (q.type === "ordering" || q.type === "fill" || q.type === "practice") return q;
-      const positions = shuffle(q.options.map((_, index) => index + 1));
+  function openQuiz(questions, topicName) {
+    const pending = availableDrafts(getStudy()).find(([, draft]) =>
+      !draft.reviewingMistakes && draft.test === state.currentTest && draft.topic === topicName);
+    if (pending) return restoreQuiz(...pending);
+    startQuiz(questions, topicName);
+  }
+
+  function startQuiz(questions, topicName, reviewingMistakes = false, fullQuizKeys = state.fullQuizKeys) {
+    if (!questions.length) return;
+    const questionOrder = shuffle(questions).map(question => ({
+      key: questionKeys.get(question),
+      positions: ["ordering", "fill", "practice"].includes(question.type)
+        ? null : shuffle(question.options.map((_, index) => index + 1))
+    }));
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    restoreQuiz(id, {
+      test: state.currentTest, topic: topicName, reviewingMistakes, questionOrder,
+      fullQuizKeys: reviewingMistakes ? fullQuizKeys : questions.map(question => questionKeys.get(question)),
+      index: 0, answers: {}, userAnswers: []
+    });
+    saveCurrentQuiz();
+  }
+
+  function restoreQuiz(id, draft) {
+    state.draftId = id;
+    state.currentTest = draft.test;
+    state.currentTopic = draft.topic;
+    state.reviewingMistakes = draft.reviewingMistakes;
+    state.fullQuizKeys = draft.fullQuizKeys;
+    state.questionOrder = draft.questionOrder;
+    state.questions = draft.questionOrder.map(({ key, positions }) => {
+      const question = questionBank.get(key);
+      if (!positions) return question;
       return {
-        ...q,
-        type: q.type ?? (q.answer_numbers.length > 1 ? "multiple" : "single"),
-        options: positions.map(position => q.options[position - 1]),
-        answer_numbers: q.answer_numbers.map(number => positions.indexOf(number) + 1)
+        ...question,
+        type: question.type ?? (question.answer_numbers.length > 1 ? "multiple" : "single"),
+        options: positions.map(position => question.options[position - 1]),
+        answer_numbers: question.answer_numbers.map(number => positions.indexOf(number) + 1)
       };
     });
-    state.questions = qs;
-    state.index = 0;
-    state.completedCount = 0;
-    state.answers = [];
-    state.userAnswers = [];
+    state.index = draft.index;
+    state.answers = Object.assign([], draft.answers);
+    state.completedCount = Object.keys(draft.answers).length;
+    state.userAnswers = draft.userAnswers;
     showScreen("quiz");
-    setTitle(reviewingMistakes ? "Работа над ошибками" : topicName);
+    setTitle(state.reviewingMistakes ? "Работа над ошибками" : state.currentTopic);
     showBack(true);
     showProgress(true);
     renderQuestion();
@@ -429,6 +582,7 @@
       field.value = draft[i] ?? "";
       field.oninput = () => {
         state.userAnswers[state.index] = fields.map(input => input.value);
+        saveCurrentQuiz();
       };
       field.onkeydown = event => {
         if (event.key !== "Enter" || event.isComposing) return;
@@ -476,6 +630,7 @@
         box.querySelectorAll(".option").forEach(o => o.classList.remove("selected"));
         el.classList.add("selected");
         state.userAnswers[state.index] = [i + 1];
+        saveCurrentQuiz();
       };
       box.appendChild(el);
     });
@@ -494,6 +649,7 @@
         el.classList.toggle("selected");
         const selected = [...box.querySelectorAll(".option.selected")].map(o => +o.dataset.idx + 1);
         state.userAnswers[state.index] = selected;
+        saveCurrentQuiz();
       };
       box.appendChild(el);
     });
@@ -524,11 +680,13 @@
           if (idx === 0) return;
           [current[idx - 1], current[idx]] = [current[idx], current[idx - 1]];
           renderList();
+          saveCurrentQuiz();
         };
         row.querySelector('[data-dir="down"]').onclick = () => {
           if (idx === current.length - 1) return;
           [current[idx + 1], current[idx]] = [current[idx], current[idx + 1]];
           renderList();
+          saveCurrentQuiz();
         };
         list.appendChild(row);
       });
@@ -570,6 +728,7 @@
   function submitAnswer(q, isCorrect) {
     state.answers[state.index] = isCorrect;
     state.completedCount++;
+    saveCurrentQuiz(isCorrect);
     showFeedback(q, isCorrect);
     updateProgressBar();
   }
@@ -629,7 +788,10 @@
 
     state.index++;
     if (state.index >= state.questions.length) finishQuiz();
-    else renderQuestion();
+    else {
+      renderQuestion();
+      saveCurrentQuiz();
+    }
   }
 
   // ---------- Прогресс ----------
@@ -653,7 +815,11 @@
     $("#resultDetail").textContent = state.reviewingMistakes
       ? `Работа над ошибками · ${state.currentTopic}` : state.currentTopic;
 
-    const mistakes = state.questions.filter((_, index) => state.answers[index] === false);
+    const mistakes = state.questionOrder
+      .filter((_, index) => state.answers[index] === false)
+      .map(({ key }) => questionBank.get(key));
+    $("#retryBtn").classList.toggle("hidden", !state.fullQuizKeys.every(key => questionBank.has(key)) ||
+      state.fullQuizKeys.length === 0);
     const retryMistakes = $("#retryMistakesBtn");
     retryMistakes.classList.toggle("hidden", mistakes.length === 0);
     retryMistakes.textContent = `Повторить ошибки (${mistakes.length})`;
@@ -666,6 +832,7 @@
       saveProgress(p);
     }
 
+    updateStudy(study => { delete study.drafts[state.draftId]; });
     showScreen("result");
     showBack(true);
     showProgress(false);
@@ -687,6 +854,7 @@
 
   function goBack() {
     if (state.screen === "quiz" || state.screen === "result") {
+      if (state.reviewingMistakes && state.fullQuizKeys.length === 0) return renderMistakes();
       if (state.currentTest === "100") {
         renderHome(); showScreen("home"); setTitle(HOME_TITLE); showBack(false); showProgress(false);
       } else {
@@ -699,6 +867,7 @@
 
   // ---------- Инициализация ----------
   function init() {
+    indexQuestions();
     renderHome();
     showScreen("home");
     showBack(false);
@@ -711,14 +880,16 @@
       if (state.index === 0) return;
       state.index--;
       renderQuestion();
+      saveCurrentQuiz();
     };
-    $("#retryBtn").onclick = () => startQuiz(state.fullQuizQuestions, state.currentTopic);
+    $("#retryBtn").onclick = () => openQuiz(state.fullQuizKeys.map(key => questionBank.get(key)), state.currentTopic);
     $("#toHomeBtn").onclick = () => {
       renderHome(); showScreen("home"); setTitle(HOME_TITLE); showBack(false); showProgress(false);
     };
     $("#resetProgress").onclick = () => {
-      if (confirm("Сбросить весь прогресс?")) {
+      if (confirm("Сбросить результаты, сохранённые тесты и мои ошибки?")) {
         localStorage.removeItem(LS_KEY);
+        localStorage.removeItem(STUDY_KEY);
         renderHome();
       }
     };

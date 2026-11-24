@@ -26,16 +26,28 @@
 
 <main class="container">
 
+  <p id="studyStorageStatus" class="subtitle" role="status" hidden>Браузер не смог сохранить тест и ошибки.</p>
+
   <section id="screen-home" class="screen active">
     <div class="hero">
       <h1>Тесты по медицине</h1>
       <div class="stats" id="homeStats"></div>
     </div>
-    <h2 class="subtitle">Топографическая анатомия</h2>
+    <section id="studyDrafts" hidden>
+      <h2 class="subtitle subject-heading">Продолжить тест</h2>
+      <div id="studyDraftList" class="menu-grid"></div>
+    </section>
+    <div id="studyMistakes" class="menu-grid subject-heading"></div>
+    <h2 class="subtitle subject-heading">Топографическая анатомия</h2>
     <div class="menu-grid" id="testsMenu"></div>
     <h2 class="subtitle subject-heading">Патофизиология</h2>
     <div id="patfizMenu"></div>
     <button id="resetProgress" class="btn-link">Сбросить весь прогресс</button>
+  </section>
+
+  <section id="screen-mistakes" class="screen">
+    <p id="studyMistakeEmpty" class="subtitle" hidden>Здесь появятся вопросы, на которые вы ответили неверно.</p>
+    <div id="studyMistakeList" class="menu-grid"></div>
   </section>
 
   <section id="screen-topics" class="screen">
