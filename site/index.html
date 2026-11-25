@@ -57,15 +57,26 @@
   </section>
 
   <section id="screen-quiz" class="screen">
+    <details id="questionMap" class="question-map">
+      <summary>Карта вопросов</summary>
+      <p class="question-map-legend"><span>✓ Отвечено</span><span>· Пропущено</span><span>★ Вернуться позже</span></p>
+      <div id="questionMapGrid" class="question-map-grid" aria-label="Вопросы теста"></div>
+    </details>
     <div class="question-card">
-      <div class="q-number" id="qNumber"></div>
+      <div class="q-number" id="qNumber" tabindex="-1"></div>
       <div class="q-text" id="qText"></div>
       <div id="qImages" class="q-images" hidden></div>
       <p class="q-hint" id="qHint"></p>
       <div id="qOptions" class="q-options"></div>
       <div id="qFeedback" class="q-feedback hidden" role="status"></div>
+      <aside id="qExplanation" class="q-explanation" hidden>
+        <strong>Почему так</strong>
+        <p id="qExplanationText"></p>
+      </aside>
       <div class="q-actions">
         <button id="prevQuestionBtn" type="button" class="btn-secondary hidden">← Предыдущий вопрос</button>
+        <button id="flagQuestionBtn" type="button" class="btn-secondary" aria-pressed="false">☆ Вернуться позже</button>
+        <button id="skipQuestionBtn" type="button" class="btn-secondary">Пропустить</button>
         <button id="answerBtn" class="btn-primary">Ответить</button>
         <button id="nextBtn" class="btn-primary hidden">Далее →</button>
       </div>

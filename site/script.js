@@ -131,6 +131,49 @@
     }
   }
 
+  const explanations = {
+    "test100": {
+      "38": "Возвратный гортанный нерв поднимается к гортани в борозде между трахеей и пищеводом. Слева он огибает дугу аорты, справа — подключичную артерию.",
+      "73": "При клапанном механизме воздух поступает в плевральную полость и задерживается там. Рост давления сдавливает лёгкое и уменьшает венозный возврат к сердцу."
+    },
+    "test400": {
+      "67": "Бедренный канал занимает медиальное отделение сосудистого влагалища. Поэтому бедренная вена прилежит к каналу с латеральной стороны.",
+      "93": "Кожно-мышечный нерв отходит от латерального пучка и иннервирует мышцы передней группы плеча.",
+      "95": "Лакунарная связка образует медиальный край кольца. Бедренная вена ограничивает кольцо латерально, паховая связка — спереди.",
+      "146": "Паховая связка проходит над входом в бедренный канал и образует его передне-верхнюю границу.",
+      "287": "Медиальный пучок даёт локтевой нерв, медиальные кожные нервы плеча и предплечья и медиальный корешок срединного нерва.",
+      "387": "Рыхлая клетчатка и лимфатические структуры находятся в медиальном отделении бедренного влагалища, рядом с веной."
+    },
+    "test600": {
+      "338": "Пищеводное отверстие находится примерно на уровне T10. Через него вместе с пищеводом проходят блуждающие стволы."
+    },
+    "test800": {
+      "178": "В печёночно-двенадцатиперстной связке холедох лежит спереди и справа от воротной вены. Собственная печёночная артерия проходит спереди и слева.",
+      "449": "Брюшная аорта обычно делится на две общие подвздошные артерии на уровне L4.",
+      "510": "Мышца, поднимающая задний проход, образует основную часть тазового дна и поддерживает органы малого таза."
+    },
+    "testpatfiz": {
+      "ПРИ ЛИХОРАДКЕ ПРОИСХОДИТ ПЕРЕСТРОЙКА ____ НА ДРУГОЙ, БОЛЕЕ ВЫСОКИЙ УРОВЕНЬ": "Пирогенные сигналы повышают температурную уставку гипоталамуса. Тело начинает сохранять и вырабатывать тепло, пока температура не достигнет нового уровня.",
+      "ВЫБЕРИТЕ ВЕРНУЮ ПОСЛЕДОВАТЕЛЬНОСТЬ СТАДИЙ ЛИХОРАДКИ": "Сначала температура растёт до новой уставки, затем держится на этом уровне. Когда уставка возвращается к исходной, температура снижается.",
+      "В ПЕРВУЮ СТАДИЮ ЛИХОРАДКИ": "После повышения уставки сужаются кожные сосуды и может появиться дрожь. Тело накапливает тепло, поскольку вырабатывает его больше, чем отдаёт.",
+      "ВО ВТОРУЮ СТАДИЮ ЛИХОРАДКИ": "Температура достигает новой уставки и держится на повышенном уровне, пока теплопродукция компенсирует теплоотдачу.",
+      "В ТРЕТЬЮ СТАДИЮ ЛИХОРАДКИ": "После снижения температурной уставки сосуды кожи расширяются и усиливается потоотделение. Теплоотдача превышает теплопродукцию.",
+      "СНИЖЕНИЕ ТЕМПЕРАТУРЫ ТЕЛА ПРИ ЛИХОРАДКЕ ОБУСЛОВЛЕНО (3)": "После снижения уставки расширение сосудов кожи и потоотделение усиливают отдачу тепла. Расслабление мышц уменьшает теплопродукцию.",
+      "ПРИЧИНАМИ СИСТЕМНОЙ ЦИРКУЛЯТОРНОЙ ГИПОКСИИ ЯВЛЯЮТСЯ (2)": "Сердечная недостаточность снижает кровоток, а выраженная гипотония ухудшает перфузию. В обоих случаях ткани получают меньше кислорода.",
+      "ПРИЧИНАМИ ЛОКАЛЬНОЙ ЦИРКУЛЯТОРНОЙ ГИПОКСИИ ЯВЛЯЮТСЯ (2)": "Тромбоз и воспалительное поражение сосудов могут ограничить кровоток в конкретном участке, снижая доставку кислорода к его тканям.",
+      "ВЫБЕРИТЕ ПРИЧИНЫ ГЕМИЧЕСКОЙ ГИПОКСИИ (3)": "При анемии и талассемии снижается эффективная кислородная ёмкость крови. Нитриты превращают часть гемоглобина в метгемоглобин, который не переносит кислород.",
+      "ИНАКТИВАЦИОННЫЙ ТИП ГЕМИЧЕСКОЙ ГИПОКСИИ РАЗВИВАЕТСЯ В РЕЗУЛЬТАТЕ": "Угарный газ связывается с гемоглобином с образованием карбоксигемоглобина. Это снижает перенос кислорода и затрудняет его отдачу тканям.",
+      "ПРИ ГАЗОВОМ АЦИДОЗЕ PH КРОВИ СТАНОВИТСЯ ____ (> ИЛИ <, УКАЗАТЬ ЗНАЧЕНИЕ)": "При недостаточной альвеолярной вентиляции накапливается CO₂, увеличивается концентрация ионов водорода и pH снижается.",
+      "ПРИ ГАЗОВОМ АЦИДОЗЕ PСО2 В КРОВИ СТАНОВИТСЯ ____ ММ.РТ.СТ. (> ИЛИ <, УКАЗАТЬ ЗНАЧЕНИЕ)": "Первичное изменение при дыхательном ацидозе — рост парциального давления CO₂ из-за недостаточной альвеолярной вентиляции.",
+      "ПРИ ГАЗОВОМ АЛКАЛОЗЕ PH КРОВИ СТАНОВИТСЯ ____ (> ИЛИ <, УКАЗАТЬ ЗНАЧЕНИЕ)": "Гипервентиляция ускоряет выведение CO₂, вслед за этим концентрация ионов водорода падает и pH растёт.",
+      "ПРИ ГАЗОВОМ АЛКАЛОЗЕ PСО2 В КРОВИ СТАНОВИТСЯ ____ ММ.РТ.СТ. (> ИЛИ <, УКАЗАТЬ ЗНАЧЕНИЕ)": "При гипервентиляции CO₂ выводится быстрее, чем образуется. Поэтому его парциальное давление в артериальной крови снижается.",
+      "ВЫБЕРИТЕ ДОЛГОВРЕМЕННЫЕ КОМПЕНСАТОРНЫЕ МЕХАНИЗМЫ ПРИ ГАЗОВОМ АЛКАЛОЗЕ (3)": "Почки уменьшают удержание бикарбоната и выделение кислоты. Это сдвигает pH в сторону исходного уровня.",
+      "ВЫБЕРИТЕ ВАРИАНТЫ МЕТАБОЛИЧЕСКОГО НЕГАЗОВОГО АЦИДОЗА (2)": "Кетокислоты и лактат увеличивают кислотную нагрузку. Бикарбонат расходуется на её буферирование.",
+      "ВЫБЕРИТЕ ПРИЧИНЫ ВЫДЕЛИТЕЛЬНОГО НЕГАЗОВОГО АЦИДОЗА (2)": "При почечной недостаточности снижается выведение кислот, а при диарее организм теряет бикарбонат с содержимым кишечника.",
+      "ВЫБЕРИТЕ ВАРИАНТЫ НЕГАЗОВОГО АЦИДОЗА С УВЕЛИЧЕНИЕМ АНИОННОГО ИНТЕРВАЛА (3)": "Анионный интервал увеличивается, когда в плазме накапливаются анионы, которые обычно не входят в расчёт, например лактат и кетоновые анионы."
+    }
+  };
+
   const questionKeys = new WeakMap();
   const questionBank = new Map();
 
@@ -157,11 +200,12 @@
 
   function saveCurrentQuiz(isCorrect) {
     const { draftId, currentTest, currentTopic, reviewingMistakes, fullQuizKeys,
-      questionOrder, index, answers, userAnswers } = state;
+      questionOrder, index, answers, userAnswers, skipped, flagged } = state;
     updateStudy(study => {
       study.drafts[draftId] = {
         test: currentTest, topic: currentTopic, reviewingMistakes, fullQuizKeys,
-        questionOrder, index, answers: { ...answers }, userAnswers, updatedAt: Date.now()
+        questionOrder, index, answers: { ...answers }, userAnswers,
+        skipped: [...skipped], flagged: [...flagged], updatedAt: Date.now()
       };
       if (typeof isCorrect !== "boolean") return;
       const { key } = questionOrder[index];
@@ -281,6 +325,8 @@
     index: 0,
     answers: [],
     userAnswers: [],
+    skipped: new Set(),
+    flagged: new Set(),
   };
 
   // ---------- Главное меню ----------
@@ -493,6 +539,10 @@
     state.answers = Object.assign([], draft.answers);
     state.completedCount = Object.keys(draft.answers).length;
     state.userAnswers = draft.userAnswers;
+    state.skipped = new Set(draft.skipped || []);
+    state.flagged = new Set(draft.flagged || []);
+    $("#questionMap").open = false;
+    buildQuestionMap();
     showScreen("quiz");
     setTitle(state.reviewingMistakes ? "Работа над ошибками" : state.currentTopic);
     showBack(true);
@@ -501,6 +551,44 @@
   }
 
   // ---------- Рендер вопроса ----------
+  function buildQuestionMap() {
+    const buttons = state.questions.map((_, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = index + 1;
+      button.onclick = () => goToQuestion(index);
+      return button;
+    });
+    $("#questionMapGrid").replaceChildren(...buttons);
+  }
+
+  function updateQuestionMap() {
+    Array.from($("#questionMapGrid").children).forEach((button, index) => {
+      const answered = state.answers[index] !== undefined;
+      const status = answered ? "отвечено" : state.skipped.has(index) ? "пропущено" : "без ответа";
+      const flagged = state.flagged.has(index);
+      const current = index === state.index;
+      button.dataset.status = answered ? "answered" : state.skipped.has(index) ? "skipped" : "";
+      button.classList.toggle("flagged", flagged);
+      button.setAttribute("aria-current", current ? "step" : "false");
+      const label = `Вопрос ${index + 1}, ${status}${flagged ? ", вернуться позже" : ""}`;
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    });
+    const marked = state.flagged.has(state.index);
+    $("#flagQuestionBtn").textContent = marked ? "★ Отмечен для возврата" : "☆ Вернуться позже";
+    $("#flagQuestionBtn").setAttribute("aria-pressed", String(marked));
+  }
+
+  function goToQuestion(index) {
+    if (index === state.index || !state.questions[index]) return;
+    if (state.answers[state.index] === undefined) state.skipped.add(state.index);
+    state.index = index;
+    renderQuestion();
+    saveCurrentQuiz();
+    $("#qNumber").focus();
+  }
+
   function renderQuestion() {
     const q = state.questions[state.index];
     if (!q) return finishQuiz();
@@ -525,10 +613,9 @@
     });
     images.hidden = !images.childElementCount;
     $("#prevQuestionBtn").classList.toggle("hidden", state.index === 0);
-    $("#nextBtn").textContent = state.index === state.questions.length - 1
-      ? "Завершить тест" : "Далее →";
     $("#qFeedback").className = "q-feedback hidden";
     $("#qFeedback").textContent = "";
+    $("#qExplanation").hidden = true;
     $("#answerBtn").classList.remove("hidden");
     $("#answerBtn").disabled = false;
     $("#nextBtn").classList.add("hidden");
@@ -552,6 +639,8 @@
     else renderSingle(q, box);
 
     const submitted = state.answers[state.index];
+    $("#skipQuestionBtn").hidden = submitted !== undefined || q.type === "practice" ||
+      (state.index === state.questions.length - 1 && state.completedCount >= state.questions.length - 1);
     if (typeof submitted === "boolean") showFeedback(q, submitted);
     updateProgressBar();
   }
@@ -734,7 +823,9 @@
 
   function submitAnswer(q, isCorrect) {
     state.answers[state.index] = isCorrect;
+    state.skipped.delete(state.index);
     state.completedCount++;
+    $("#skipQuestionBtn").hidden = true;
     saveCurrentQuiz(isCorrect);
     showFeedback(q, isCorrect);
     updateProgressBar();
@@ -780,6 +871,10 @@
       fb.textContent = `❌ Неверно. Правильный ответ: ${expectedText}`;
     }
     fb.classList.remove("hidden");
+    const notes = explanations["test" + state.currentTest];
+    const explanation = notes?.[state.currentTest === "patfiz" ? q.question : q.number];
+    $("#qExplanation").hidden = !explanation;
+    $("#qExplanationText").textContent = explanation || "";
 
     $("#answerBtn").classList.add("hidden");
     $("#nextBtn").classList.remove("hidden");
@@ -790,14 +885,16 @@
     if (state.answers[state.index] === undefined) {
       if (q.type !== "practice") return;
       state.answers[state.index] = null;
+      state.skipped.delete(state.index);
       state.completedCount++;
     }
 
-    state.index++;
-    if (state.index >= state.questions.length) finishQuiz();
-    else {
-      renderQuestion();
-      saveCurrentQuiz();
+    if (state.index < state.questions.length - 1) {
+      goToQuestion(state.index + 1);
+    } else if (state.completedCount === state.questions.length) {
+      finishQuiz();
+    } else {
+      goToQuestion(state.questions.findIndex((_, index) => state.answers[index] === undefined));
     }
   }
 
@@ -808,6 +905,10 @@
     const pct = total ? Math.round((done / total) * 100) : 0;
     $("#progressFill").style.width = pct + "%";
     $("#progressText").textContent = `${done} / ${total}`;
+    updateQuestionMap();
+    const pendingElsewhere = total - done - Number(state.answers[state.index] === undefined);
+    $("#nextBtn").textContent = state.index < total - 1 ? "Далее →"
+      : pendingElsewhere > 0 ? "К пропущенным →" : "Завершить тест";
   }
 
   // ---------- Завершение ----------
@@ -883,10 +984,15 @@
     $("#backBtn").onclick = goBack;
     $("#answerBtn").onclick = answerQuestion;
     $("#nextBtn").onclick = nextQuestion;
-    $("#prevQuestionBtn").onclick = () => {
-      if (state.index === 0) return;
-      state.index--;
-      renderQuestion();
+    $("#prevQuestionBtn").onclick = () => goToQuestion(state.index - 1);
+    $("#skipQuestionBtn").onclick = () => goToQuestion(
+      state.index < state.questions.length - 1 ? state.index + 1 : state.questions.findIndex(
+        (_, index) => index !== state.index && state.answers[index] === undefined
+      )
+    );
+    $("#flagQuestionBtn").onclick = () => {
+      if (!state.flagged.delete(state.index)) state.flagged.add(state.index);
+      updateQuestionMap();
       saveCurrentQuiz();
     };
     $("#retryBtn").onclick = () => openQuiz(state.fullQuizKeys.map(key => questionBank.get(key)), state.currentTopic);
