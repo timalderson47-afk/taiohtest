@@ -56,7 +56,20 @@
     <div id="topicsMenu"></div>
   </section>
 
+  <dialog id="answerOrderDialog" class="question-card answer-order-dialog" aria-labelledby="answerOrderTitle">
+    <h2 id="answerOrderTitle">Порядок вариантов ответа</h2>
+    <p id="answerOrderTopic"></p>
+    <div class="answer-order-actions">
+      <button type="button" class="btn-primary" data-order="shuffled" autofocus>Перемешивать варианты</button>
+      <button type="button" class="btn-secondary" data-order="original">Порядок из ключей</button>
+    </div>
+    <form method="dialog">
+      <button class="btn-link">Отмена</button>
+    </form>
+  </dialog>
+
   <section id="screen-quiz" class="screen">
+    <p id="quizAnswerOrder" class="quiz-answer-order"></p>
     <details id="questionMap" class="question-map">
       <summary>Карта вопросов</summary>
       <p class="question-map-legend"><span>✓ Отвечено</span><span>· Пропущено</span><span>★ Вернуться позже</span></p>

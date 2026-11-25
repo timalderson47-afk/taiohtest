@@ -174,6 +174,11 @@
     }
   };
 
+  const answerOrderLabels = {
+    shuffled: "Перемешивать варианты",
+    original: "Порядок из ключей"
+  };
+
   const questionKeys = new WeakMap();
   const questionBank = new Map();
 
@@ -200,11 +205,11 @@
 
   function saveCurrentQuiz(isCorrect) {
     const { draftId, currentTest, currentTopic, reviewingMistakes, fullQuizKeys,
-      questionOrder, index, answers, userAnswers, skipped, flagged } = state;
+      answerOrder, questionOrder, index, answers, userAnswers, skipped, flagged } = state;
     updateStudy(study => {
       study.drafts[draftId] = {
         test: currentTest, topic: currentTopic, reviewingMistakes, fullQuizKeys,
-        questionOrder, index, answers: { ...answers }, userAnswers,
+        answerOrder, questionOrder, index, answers: { ...answers }, userAnswers,
         skipped: [...skipped], flagged: [...flagged], updatedAt: Date.now()
       };
       if (typeof isCorrect !== "boolean") return;
@@ -247,7 +252,8 @@
     $("#studyDrafts").hidden = !drafts.length;
     for (const [id, draft] of drafts) {
       const mode = draft.reviewingMistakes ? "Работа над ошибками · " : "";
-      const details = `${mode}${testLabel(draft.test)} · Вопрос ${draft.index + 1} из ${draft.questionOrder.length}`;
+      const order = answerOrderLabels[draft.answerOrder] || answerOrderLabels.shuffled;
+      const details = `${mode}${testLabel(draft.test)} · ${order} · Вопрос ${draft.index + 1} из ${draft.questionOrder.length}`;
       draftList.append(studyCard(draft.topic, details, () => restoreQuiz(id, draft)));
     }
     const count = Object.keys(study.mistakes).filter(key => questionBank.has(key)).length;
@@ -270,12 +276,15 @@
     for (const { test, topic, keys } of groups.values()) {
       list.append(studyCard(topic, `${testLabel(test)} · Вопросов: ${keys.length}`, () => {
         const wanted = new Set(keys);
-        const pending = drafts.find(([, draft]) => draft.reviewingMistakes &&
-          draft.test === test && draft.topic === topic && draft.questionOrder.length === keys.length &&
-          draft.questionOrder.every(item => wanted.has(item.key)));
-        if (pending) return restoreQuiz(...pending);
-        state.currentTest = test;
-        startQuiz(keys.map(key => questionBank.get(key)), topic, true, []);
+        chooseAnswerOrder(topic, answerOrder => {
+          const pending = drafts.find(([, draft]) => draft.reviewingMistakes &&
+            (draft.answerOrder || "shuffled") === answerOrder && draft.test === test &&
+            draft.topic === topic && draft.questionOrder.length === keys.length &&
+            draft.questionOrder.every(item => wanted.has(item.key)));
+          if (pending) return restoreQuiz(...pending);
+          state.currentTest = test;
+          startQuiz(keys.map(key => questionBank.get(key)), topic, answerOrder, true, []);
+        });
       }));
     }
     showScreen("mistakes");
@@ -321,6 +330,7 @@
     fullQuizKeys: [],
     questionOrder: [],
     reviewingMistakes: false,
+    answerOrder: "shuffled",
     completedCount: 0,
     index: 0,
     answers: [],
@@ -495,23 +505,45 @@
   }
 
   // ---------- Запуск квиза ----------
-  function openQuiz(questions, topicName) {
-    const pending = availableDrafts(getStudy()).find(([, draft]) =>
-      !draft.reviewingMistakes && draft.test === state.currentTest && draft.topic === topicName);
-    if (pending) return restoreQuiz(...pending);
-    startQuiz(questions, topicName);
+  function chooseAnswerOrder(topicName, onChoose) {
+    const dialog = $("#answerOrderDialog");
+    $("#answerOrderTopic").textContent = topicName;
+
+    for (const button of dialog.querySelectorAll("button[data-order]")) {
+      button.onclick = () => {
+        dialog.close();
+        onChoose(button.dataset.order);
+      };
+    }
+
+    dialog.showModal();
   }
 
-  function startQuiz(questions, topicName, reviewingMistakes = false, fullQuizKeys = state.fullQuizKeys) {
+  function openQuiz(questions, topicName) {
+    chooseAnswerOrder(topicName, answerOrder => {
+      const pending = availableDrafts(getStudy()).find(([, draft]) =>
+        !draft.reviewingMistakes && draft.test === state.currentTest && draft.topic === topicName &&
+        (draft.answerOrder || "shuffled") === answerOrder);
+      if (pending) return restoreQuiz(...pending);
+      startQuiz(questions, topicName, answerOrder);
+    });
+  }
+
+  function startQuiz(questions, topicName, answerOrder, reviewingMistakes = false, fullQuizKeys = state.fullQuizKeys) {
     if (!questions.length) return;
-    const questionOrder = shuffle(questions).map(question => ({
-      key: questionKeys.get(question),
-      positions: ["ordering", "fill", "practice"].includes(question.type)
-        ? null : shuffle(question.options.map((_, index) => index + 1))
-    }));
+    const questionOrder = shuffle(questions).map(question => {
+      if (["ordering", "fill", "practice"].includes(question.type)) {
+        return { key: questionKeys.get(question), positions: null };
+      }
+      const positions = question.options.map((_, index) => index + 1);
+      return {
+        key: questionKeys.get(question),
+        positions: answerOrder === "shuffled" ? shuffle(positions) : positions
+      };
+    });
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     restoreQuiz(id, {
-      test: state.currentTest, topic: topicName, reviewingMistakes, questionOrder,
+      test: state.currentTest, topic: topicName, reviewingMistakes, answerOrder, questionOrder,
       fullQuizKeys: reviewingMistakes ? fullQuizKeys : questions.map(question => questionKeys.get(question)),
       index: 0, answers: {}, userAnswers: []
     });
@@ -523,6 +555,8 @@
     state.currentTest = draft.test;
     state.currentTopic = draft.topic;
     state.reviewingMistakes = draft.reviewingMistakes;
+    state.answerOrder = draft.answerOrder || "shuffled";
+    $("#quizAnswerOrder").textContent = answerOrderLabels[state.answerOrder];
     state.fullQuizKeys = draft.fullQuizKeys;
     state.questionOrder = draft.questionOrder;
     state.questions = draft.questionOrder.map(({ key, positions }) => {
@@ -931,7 +965,7 @@
     const retryMistakes = $("#retryMistakesBtn");
     retryMistakes.classList.toggle("hidden", mistakes.length === 0);
     retryMistakes.textContent = `Повторить ошибки (${mistakes.length})`;
-    retryMistakes.onclick = () => startQuiz(mistakes, state.currentTopic, true);
+    retryMistakes.onclick = () => startQuiz(mistakes, state.currentTopic, state.answerOrder, true);
 
     if (!state.reviewingMistakes) {
       const p = getProgress();
