@@ -254,7 +254,25 @@
       const mode = draft.reviewingMistakes ? "Работа над ошибками · " : "";
       const order = answerOrderLabels[draft.answerOrder] || answerOrderLabels.shuffled;
       const details = `${mode}${testLabel(draft.test)} · ${order} · Вопрос ${draft.index + 1} из ${draft.questionOrder.length}`;
-      draftList.append(studyCard(draft.topic, details, () => restoreQuiz(id, draft)));
+      const entry = document.createElement("div");
+      entry.className = "study-draft-entry";
+      const resume = studyCard(draft.topic, details, () => restoreQuiz(id, draft));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "btn-link study-draft-remove";
+      remove.textContent = "Удалить";
+      remove.setAttribute("aria-label", `Удалить черновик: ${draft.topic} · ${order}`);
+      remove.onclick = () => {
+        if (!confirm(`Удалить незавершённую попытку «${draft.topic}»?\nОтветы в этой попытке будут потеряны.`)) return;
+
+        const position = [...draftList.children].indexOf(entry);
+        updateStudy(study => { delete study.drafts[id]; });
+        renderStudyHome();
+        const nextEntry = draftList.children[position] || draftList.lastElementChild;
+        (nextEntry?.querySelector(".menu-card") || $("#studyMistakes").firstElementChild).focus();
+      };
+      entry.append(resume, remove);
+      draftList.append(entry);
     }
     const count = Object.keys(study.mistakes).filter(key => questionBank.has(key)).length;
     $("#studyMistakes").replaceChildren(studyCard("Мои ошибки", `Вопросов для повторения: ${count}`, renderMistakes));
